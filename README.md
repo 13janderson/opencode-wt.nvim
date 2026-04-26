@@ -20,22 +20,10 @@ With lazy.nvim:
 {
   "13janderson/opencode-wt.nvim",
   dependencies = {
-    "ThePrimeagen/git-worktree.nvim",
+    "13janderson/git-worktree.nvim"
   },
   opts = {},
 }
-```
-
-With packer.nvim:
-
-```lua
-use({
-  "13janderson/opencode-wt.nvim",
-  requires = { "13janderson/git-worktree.nvim" },
-  config = function()
-    require("opencode-wt").setup({})
-  end,
-})
 ```
 
 ## Configuration
