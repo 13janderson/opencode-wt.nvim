@@ -6,6 +6,27 @@ State.__index = State
 State.state_dir = tostring(Path:new(vim.fn.stdpath("data"), "opencode-wt"))
 State.state_file = tostring(Path:new(State.state_dir, "sessions.json"))
 
+local function safe_json_decode(raw, label)
+  local ok, result = pcall(vim.json.decode, raw)
+  if not ok then
+    vim.notify(
+      "[opencode-wt] JSON decode failed for " .. label .. ":\n" .. tostring(result) .. "\nRaw:\n" .. tostring(raw),
+      vim.log.levels.ERROR
+    )
+    return nil
+  end
+  if type(result) ~= "table" then
+    vim.notify(
+      "[opencode-wt] JSON decode returned non-table for " .. label .. ":\n" .. vim.inspect(result),
+      vim.log.levels.ERROR
+    )
+    return nil
+  end
+  return result
+end
+
+State.safe_json_decode = safe_json_decode
+
 function State:new()
   local obj = setmetatable({}, self)
   obj.data = obj:read()
@@ -13,13 +34,18 @@ function State:new()
 end
 
 function State:read()
-  local ok, decoded = pcall(function()
-    return vim.json.decode(Path:new(self.state_file):read())
+  local read_ok, content = pcall(function()
+    return Path:new(self.state_file):read()
   end)
-  if ok and type(decoded) == "table" then
-    return decoded
+  if not read_ok or not content or content == "" then
+    return {}
   end
-  return {}
+
+  local decoded = safe_json_decode(content, "state file (" .. self.state_file .. ")")
+  if not decoded then
+    return {}
+  end
+  return decoded
 end
 
 function State:write()
@@ -47,8 +73,8 @@ function State:validate_session(path)
     return nil
   end
 
-  local sessions = vim.json.decode(output)
-  if type(sessions) ~= "table" then
+  local sessions = safe_json_decode(output, "opencode session list")
+  if not sessions then
     self:remove_session(path)
     return nil
   end
@@ -82,8 +108,8 @@ function State:refresh_session(path)
     return nil
   end
 
-  local sessions = vim.json.decode(output)
-  if type(sessions) ~= "table" then
+  local sessions = safe_json_decode(output, "opencode session list")
+  if not sessions then
     return nil
   end
 

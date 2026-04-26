@@ -117,8 +117,8 @@ function M.build_opencode_cmd(path)
     return vim.fn.system("opencode session list --format json -n 50")
   end)
   if ok and vim.v.shell_error == 0 then
-    local sessions = vim.json.decode(output)
-    if type(sessions) == "table" then
+    local sessions = State.safe_json_decode(output, "build_opencode_cmd session lookup")
+    if sessions then
       for _, session in ipairs(sessions) do
         if session.directory == path then
           State:set_session(path, session.id)
