@@ -36,20 +36,6 @@ function M.get_current_path()
   return vim.fn.getcwd()
 end
 
-function M.is_on_worktree()
-  local ok, git = pcall(require, "git-worktree.git")
-  if not ok then
-    return false
-  end
-  local gitroot = git.gitroot_dir()
-  local toplevel = git.toplevel_dir()
-  if not gitroot or not toplevel then
-    return false
-  end
-  local gitroot_parent = gitroot:gsub("/%.git$", "")
-  return toplevel ~= gitroot_parent
-end
-
 function M.setup(opts)
   M.config = vim.tbl_deep_extend("force", M.config, opts or {})
 
@@ -259,6 +245,14 @@ function M.open_terminal_window(bufnr)
   end
 
   M.win_id = win
+
+  vim.api.nvim_create_autocmd("WinClosed", {
+    pattern = tostring(win),
+    callback = function()
+      M.win_id = nil
+      M.prompt_win_id = nil
+    end,
+  })
 end
 
 function M.close_terminal_window()

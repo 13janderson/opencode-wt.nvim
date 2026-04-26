@@ -11,14 +11,14 @@ local function safe_json_decode(raw, label)
   if not ok then
     vim.notify(
       "[opencode-wt] JSON decode failed for " .. label .. ":\n" .. tostring(result) .. "\nRaw:\n" .. tostring(raw),
-      vim.log.levels.ERROR
+      vim.log.levels.WARN
     )
     return nil
   end
   if type(result) ~= "table" then
     vim.notify(
       "[opencode-wt] JSON decode returned non-table for " .. label .. ":\n" .. vim.inspect(result),
-      vim.log.levels.ERROR
+      vim.log.levels.WARN
     )
     return nil
   end
