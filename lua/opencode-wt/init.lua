@@ -1,4 +1,5 @@
 local M = {}
+local State = require("opencode-wt.state")
 
 M.terminals = {}
 M.win_id = nil
@@ -84,6 +85,14 @@ function M.setup(opts)
     M.send_to_terminal(opts_arg.args)
   end, { desc = "Send text to opencode terminal", nargs = "?", range = true })
 
+  vim.api.nvim_create_user_command("OpencodeWTSessionInfo", function()
+    M.print_session_info()
+  end, { desc = "Show session info for current worktree" })
+
+  vim.api.nvim_create_user_command("OpencodeWTSessionRefresh", function()
+    M.refresh_current_session()
+  end, { desc = "Refresh session ID for current worktree" })
+
   if M.config.keymaps.toggle then
     vim.keymap.set("n", M.config.keymaps.toggle, function()
       M.toggle()
@@ -95,6 +104,36 @@ function M.setup(opts)
       M.toggle_prompt()
     end, { desc = "Toggle opencode prompt buffer" })
   end
+end
+
+function M.build_opencode_cmd(path)
+  local session_id = State:validate_session(path)
+  if session_id then
+    return M.config.opencode_cmd .. " -s " .. session_id
+  end
+
+  local has_sessions = false
+  local ok, output = pcall(function()
+    return vim.fn.system("opencode session list --format json -n 50")
+  end)
+  if ok and vim.v.shell_error == 0 then
+    local sessions = vim.json.decode(output)
+    if type(sessions) == "table" then
+      for _, session in ipairs(sessions) do
+        if session.directory == path then
+          State:set_session(path, session.id)
+          has_sessions = true
+          break
+        end
+      end
+    end
+  end
+
+  if has_sessions then
+    return M.config.opencode_cmd .. " -s " .. State:get_session(path)
+  end
+
+  return M.config.opencode_cmd
 end
 
 function M.on_switch(path)
@@ -179,7 +218,18 @@ function M.open_for_worktree(path, focus)
   M.open_terminal_window(bufnr)
 
   if not existing then
-    local job_id = vim.fn.termopen(M.config.opencode_cmd, { cwd = path })
+    local cmd = M.build_opencode_cmd(path)
+    local job_id = vim.fn.termopen(cmd, {
+      cwd = path,
+      on_exit = function(_, exit_code)
+        if exit_code ~= 0 then
+          return
+        end
+        vim.schedule(function()
+          State:refresh_session(path)
+        end)
+      end,
+    })
     M.terminals[path] = M.terminals[path] or {}
     M.terminals[path].bufnr = bufnr
     M.terminals[path].job_id = job_id
@@ -403,6 +453,30 @@ function M.send_line_to_terminal(path)
   local line = vim.api.nvim_buf_get_lines(bufnr, cursor_row - 1, cursor_row, false)[1]
   if line then
     M.send_to_terminal(line, true, path)
+  end
+end
+
+function M.print_session_info()
+  local path = M.get_current_path()
+  local session_id = State:get_session(path)
+  local entry = M.get_entry(path)
+  if session_id then
+    print("[opencode-wt] worktree: " .. path .. " | session: " .. session_id)
+  else
+    print("[opencode-wt] worktree: " .. path .. " | no saved session")
+  end
+  if entry then
+    print("  job_id: " .. tostring(entry.job_id) .. " | bufnr: " .. tostring(entry.bufnr))
+  end
+end
+
+function M.refresh_current_session()
+  local path = M.get_current_path()
+  local session_id = State:refresh_session(path)
+  if session_id then
+    print("[opencode-wt] refreshed session: " .. session_id)
+  else
+    print("[opencode-wt] no session found for " .. path)
   end
 end
 
