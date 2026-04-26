@@ -13,6 +13,7 @@ M.config = {
   keymaps = {
     toggle = "<leader>ot",
     prompt = "<leader>O",
+    focus = "<leader>oc",
   },
 }
 
@@ -89,6 +90,12 @@ function M.setup(opts)
     vim.keymap.set("n", M.config.keymaps.prompt, function()
       M.toggle_prompt()
     end, { desc = "Toggle opencode prompt buffer" })
+  end
+
+  if M.config.keymaps.focus then
+    vim.keymap.set("n", M.config.keymaps.focus, function()
+      M.focus()
+    end, { desc = "Focus opencode terminal" })
   end
 end
 
@@ -272,6 +279,18 @@ function M.toggle()
   local path = M.get_current_path()
   M.open_for_worktree(path, true)
   M.open_prompt(path)
+end
+
+function M.focus()
+  if M.win_id and vim.api.nvim_win_is_valid(M.win_id) then
+    vim.api.nvim_set_current_win(M.win_id)
+    vim.cmd("startinsert")
+    return
+  end
+
+  local path = M.get_current_path()
+  M.open_for_worktree(path, true)
+  vim.cmd("startinsert")
 end
 
 function M.create_prompt_buf(path)
