@@ -9,10 +9,11 @@ M.config = {
   prompt_size = 8,
   direction = "vertical",
   opencode_cmd = "opencode",
+  scrollback = 10000,
   keymaps = {
-    toggle = "<leader>ot",
-    prompt = "<leader>O",
-    focus = "<leader>oc",
+    toggle = "<leader>oc",
+    prompt = "<leader>os",
+    focus = "<leader>O",
   },
 }
 

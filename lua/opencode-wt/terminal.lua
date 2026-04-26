@@ -98,6 +98,7 @@ function M.open_for_worktree(path, focus, config)
     bufnr = entry.bufnr
   else
     bufnr = vim.api.nvim_create_buf(false, true)
+    vim.api.nvim_set_option_value("scrollback", config.scrollback or 10000, { buf = bufnr })
   end
 
   M.open_terminal_window(bufnr, config)
@@ -115,6 +116,18 @@ function M.open_for_worktree(path, focus, config)
         end)
       end,
     })
+    
+    -- Terminal buffer keymaps for easier navigation
+    vim.api.nvim_buf_set_keymap(bufnr, "t", "<Esc>", "<C-\\><C-n>", { noremap = true, silent = true, desc = "Exit terminal mode" })
+    vim.api.nvim_buf_set_keymap(bufnr, "t", "<C-[>", "<C-\\><C-n>", { noremap = true, silent = true, desc = "Exit terminal mode" })
+    
+    -- Normal mode scrolling in terminal (send to opencode)
+    -- Matches tui.json: ctrl+k scrolls up, ctrl+l scrolls down
+    vim.api.nvim_buf_set_keymap(bufnr, "n", "<C-k>", "i<C-k><C-\\><C-n>", { noremap = true, silent = true, desc = "Scroll up" })
+    vim.api.nvim_buf_set_keymap(bufnr, "n", "<C-j>", "i<C-l><C-\\><C-n>", { noremap = true, silent = true, desc = "Scroll down" })
+    vim.api.nvim_buf_set_keymap(bufnr, "n", "gg", "i<C-g><C-\\><C-n>", { noremap = true, silent = true, desc = "Jump to first message" })
+    vim.api.nvim_buf_set_keymap(bufnr, "n", "G", "i<M-C-g><C-\\><C-n>", { noremap = true, silent = true, desc = "Jump to last message" })
+    
     M.terminals[path] = M.terminals[path] or {}
     M.terminals[path].bufnr = bufnr
     M.terminals[path].job_id = job_id
