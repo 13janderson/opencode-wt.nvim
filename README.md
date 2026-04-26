@@ -10,10 +10,7 @@ A Neovim plugin that integrates the [opencode](https://opencode.ai) AI coding as
 - **Toggle commands** — Open/close the terminal and prompt buffer with a single keymap or command.
 
 ## Requirements
-
-- Neovim >= 0.9
 - [opencode](https://opencode.ai) CLI installed and on `$PATH`
-- [git-worktree.nvim](https://github.com/ThePrimeagen/git-worktree.nvim)
 
 ## Installation
 
