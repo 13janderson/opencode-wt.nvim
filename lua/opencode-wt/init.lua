@@ -3,7 +3,6 @@ local M = {}
 M.terminals = {}
 M.win_id = nil
 M.last_path = nil
-M.prompt_bufnr = nil
 M.prompt_win_id = nil
 M.config = {
   size = 70,
@@ -107,7 +106,7 @@ function M.on_switch(path)
   M.close_terminal_window()
   M.open_for_worktree(path, false)
   if had_prompt then
-    M.open_prompt()
+    M.open_prompt(path)
   end
 end
 
@@ -122,24 +121,41 @@ function M.on_dir_changed()
     M.close_terminal_window()
     M.open_for_worktree(path, false)
     if had_prompt then
-      M.open_prompt()
+      M.open_prompt(path)
     end
   end
 end
 
 function M.on_delete(path)
   local entry = M.terminals[path]
-  if entry and entry.bufnr and vim.api.nvim_buf_is_valid(entry.bufnr) then
-    vim.api.nvim_buf_delete(entry.bufnr, { force = true })
+  if entry then
+    if entry.bufnr and vim.api.nvim_buf_is_valid(entry.bufnr) then
+      vim.api.nvim_buf_delete(entry.bufnr, { force = true })
+    end
+    if entry.prompt_bufnr and vim.api.nvim_buf_is_valid(entry.prompt_bufnr) then
+      vim.api.nvim_buf_delete(entry.prompt_bufnr, { force = true })
+    end
   end
   M.terminals[path] = nil
 end
 
-function M.current_job_id()
-  local path = M.get_current_path()
-  local entry = M.terminals[path]
+function M.get_entry(path)
+  path = path or M.get_current_path()
+  return M.terminals[path]
+end
+
+function M.current_job_id(path)
+  local entry = M.get_entry(path)
   if entry and entry.job_id then
     return entry.job_id
+  end
+  return nil
+end
+
+function M.get_prompt_bufnr(path)
+  local entry = M.get_entry(path)
+  if entry and entry.prompt_bufnr and vim.api.nvim_buf_is_valid(entry.prompt_bufnr) then
+    return entry.prompt_bufnr
   end
   return nil
 end
@@ -164,7 +180,9 @@ function M.open_for_worktree(path, focus)
 
   if not existing then
     local job_id = vim.fn.termopen(M.config.opencode_cmd, { cwd = path })
-    M.terminals[path] = { bufnr = bufnr, job_id = job_id }
+    M.terminals[path] = M.terminals[path] or {}
+    M.terminals[path].bufnr = bufnr
+    M.terminals[path].job_id = job_id
   end
 
   if not focus then
@@ -209,12 +227,13 @@ function M.toggle()
 
   local path = M.get_current_path()
   M.open_for_worktree(path, true)
-  M.open_prompt()
+  M.open_prompt(path)
 end
 
-function M.create_prompt_buf()
-  if M.prompt_bufnr and vim.api.nvim_buf_is_valid(M.prompt_bufnr) then
-    return M.prompt_bufnr
+function M.create_prompt_buf(path)
+  local existing = M.get_prompt_bufnr(path)
+  if existing then
+    return existing
   end
 
   local bufnr = vim.api.nvim_create_buf(false, true)
@@ -222,30 +241,35 @@ function M.create_prompt_buf()
   vim.api.nvim_set_option_value("bufhidden", "hide", { buf = bufnr })
   vim.api.nvim_set_option_value("swapfile", false, { buf = bufnr })
   vim.api.nvim_set_option_value("filetype", "opencode-prompt", { buf = bufnr })
-  vim.api.nvim_buf_set_name(bufnr, "opencode-prompt://" .. bufnr)
+  vim.api.nvim_buf_set_name(bufnr, "opencode-prompt://" .. path)
 
-  local send_and_clear = function()
-    M.send_prompt(true)
-  end
   vim.api.nvim_buf_set_keymap(bufnr, "n", "<CR>", "", {
-    callback = send_and_clear,
+    callback = function()
+      M.send_prompt(path, true)
+    end,
     desc = "Send prompt to opencode and clear",
   })
-  -- C-c to stop typing then C-m to "hit enter" because they're the same thing
-  -- in most terminals.
   vim.api.nvim_buf_set_keymap(bufnr, "i", "<CR>", "", {
-    callback = send_and_clear,
+    callback = function()
+      M.send_prompt(path, true)
+    end,
     desc = "Send prompt to opencode and clear",
+  })
+  vim.api.nvim_buf_set_keymap(bufnr, "i", "<C-j>", "", {
+    callback = function()
+      vim.api.nvim_put({ "" }, "l", true, false)
+    end,
+    desc = "Insert newline in prompt",
   })
   vim.api.nvim_buf_set_keymap(bufnr, "v", "<CR>", "", {
     callback = function()
-      M.send_visual_selection()
+      M.send_visual_selection(path)
     end,
     desc = "Send visual selection to opencode",
   })
   vim.api.nvim_buf_set_keymap(bufnr, "n", "<C-l>", "", {
     callback = function()
-      M.send_line_to_terminal()
+      M.send_line_to_terminal(path)
     end,
     desc = "Send current line to opencode",
   })
@@ -256,7 +280,8 @@ function M.create_prompt_buf()
     desc = "Close prompt buffer",
   })
 
-  M.prompt_bufnr = bufnr
+  M.terminals[path] = M.terminals[path] or {}
+  M.terminals[path].prompt_bufnr = bufnr
   return bufnr
 end
 
@@ -269,7 +294,9 @@ function M.toggle_prompt()
   M.open_prompt()
 end
 
-function M.open_prompt()
+function M.open_prompt(path)
+  path = path or M.get_current_path()
+
   if not M.win_id or not vim.api.nvim_win_is_valid(M.win_id) then
     vim.notify("[opencode-wt] open the opencode terminal first", vim.log.levels.WARN)
     return
@@ -279,7 +306,7 @@ function M.open_prompt()
     return
   end
 
-  local bufnr = M.create_prompt_buf()
+  local bufnr = M.create_prompt_buf(path)
 
   local prompt_win
   vim.api.nvim_win_call(M.win_id, function()
@@ -306,11 +333,11 @@ function M.close_prompt_window()
   M.prompt_win_id = nil
 end
 
-function M.send_to_terminal(text, submit)
+function M.send_to_terminal(text, submit, path)
   if not text or text == "" then
     return
   end
-  local job_id = M.current_job_id()
+  local job_id = M.current_job_id(path)
   if not job_id then
     vim.notify("[opencode-wt] no active opencode terminal", vim.log.levels.WARN)
     return
@@ -323,55 +350,59 @@ function M.send_to_terminal(text, submit)
   end
 end
 
-function M.get_prompt_text()
-  if not M.prompt_bufnr or not vim.api.nvim_buf_is_valid(M.prompt_bufnr) then
+function M.get_prompt_text(path)
+  local bufnr = M.get_prompt_bufnr(path)
+  if not bufnr then
     return nil
   end
-  local lines = vim.api.nvim_buf_get_lines(M.prompt_bufnr, 0, -1, false)
+  local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
   return table.concat(lines, "\n")
 end
 
-function M.clear_prompt()
-  if M.prompt_bufnr and vim.api.nvim_buf_is_valid(M.prompt_bufnr) then
-    vim.api.nvim_buf_set_lines(M.prompt_bufnr, 0, -1, false, {})
+function M.clear_prompt(path)
+  local bufnr = M.get_prompt_bufnr(path)
+  if bufnr then
+    vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, {})
   end
 end
 
-function M.send_prompt(clear_after)
-  local text = M.get_prompt_text()
+function M.send_prompt(path, clear_after)
+  local text = M.get_prompt_text(path)
   if not text or text == "" then
     return
   end
-  M.send_to_terminal(text, true)
+  M.send_to_terminal(text, true, path)
   if clear_after then
-    M.clear_prompt()
+    M.clear_prompt(path)
   end
 end
 
-function M.send_visual_selection()
-  local start_pos = vim.fn.getpos("'<")
-  local end_pos = vim.fn.getpos("'>")
-  if not M.prompt_bufnr or not vim.api.nvim_buf_is_valid(M.prompt_bufnr) then
+function M.send_visual_selection(path)
+  local bufnr = M.get_prompt_bufnr(path)
+  if not bufnr then
     return
   end
+  local start_pos = vim.fn.getpos("'<")
+  local end_pos = vim.fn.getpos("'>")
   local lines = vim.api.nvim_buf_get_lines(
-    M.prompt_bufnr,
+    bufnr,
     start_pos[2] - 1,
     end_pos[2],
     false
   )
   local text = table.concat(lines, "\n")
-  M.send_to_terminal(text, true)
+  M.send_to_terminal(text, true, path)
 end
 
-function M.send_line_to_terminal()
-  local cursor_row = vim.api.nvim_win_get_cursor(0)[1]
-  if not M.prompt_bufnr or not vim.api.nvim_buf_is_valid(M.prompt_bufnr) then
+function M.send_line_to_terminal(path)
+  local bufnr = M.get_prompt_bufnr(path)
+  if not bufnr then
     return
   end
-  local line = vim.api.nvim_buf_get_lines(M.prompt_bufnr, cursor_row - 1, cursor_row, false)[1]
+  local cursor_row = vim.api.nvim_win_get_cursor(0)[1]
+  local line = vim.api.nvim_buf_get_lines(bufnr, cursor_row - 1, cursor_row, false)[1]
   if line then
-    M.send_to_terminal(line, true)
+    M.send_to_terminal(line, true, path)
   end
 end
 
