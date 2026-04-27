@@ -18,23 +18,7 @@ M.config = {
 }
 
 function M.get_current_path()
-  local ok, state = pcall(require, "git-worktree.state")
-  if ok then
-    local data = state:data()
-    if data.current_worktree then
-      return data.current_worktree
-    end
-  end
-
-  local git_ok, git = pcall(require, "git-worktree.git")
-  if git_ok then
-    local toplevel = git.toplevel_dir()
-    if toplevel then
-      return toplevel
-    end
-  end
-
-  return vim.fn.getcwd()
+  return vim.uv.cwd()
 end
 
 function M.setup(opts)
