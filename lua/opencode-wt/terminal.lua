@@ -71,13 +71,11 @@ function M.open_terminal_window(bufnr, config)
     pattern = tostring(win),
     callback = function()
       M.win_id = nil
-      require("opencode-wt.prompt").win_id = nil
     end,
   })
 end
 
-function M.close_terminal_window(close_prompt_fn)
-  close_prompt_fn()
+function M.close_terminal_window()
   if M.win_id and vim.api.nvim_win_is_valid(M.win_id) then
     vim.api.nvim_win_close(M.win_id, true)
   end
@@ -153,9 +151,6 @@ function M.on_delete(path)
   if entry then
     if entry.bufnr and vim.api.nvim_buf_is_valid(entry.bufnr) then
       vim.api.nvim_buf_delete(entry.bufnr, { force = true })
-    end
-    if entry.prompt_bufnr and vim.api.nvim_buf_is_valid(entry.prompt_bufnr) then
-      vim.api.nvim_buf_delete(entry.prompt_bufnr, { force = true })
     end
   end
   M.terminals[path] = nil
