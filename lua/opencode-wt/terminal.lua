@@ -125,8 +125,12 @@ function M.open_for_worktree(path, focus, config)
     -- Matches tui.json: ctrl+k scrolls up, ctrl+l scrolls down
     vim.api.nvim_buf_set_keymap(bufnr, "n", "<C-k>", "i<C-k><C-\\><C-n>", { noremap = true, silent = true, desc = "Scroll up" })
     vim.api.nvim_buf_set_keymap(bufnr, "n", "<C-j>", "i<C-l><C-\\><C-n>", { noremap = true, silent = true, desc = "Scroll down" })
-    vim.api.nvim_buf_set_keymap(bufnr, "n", "gg", "i<C-g><C-\\><C-n>", { noremap = true, silent = true, desc = "Jump to first message" })
-    vim.api.nvim_buf_set_keymap(bufnr, "n", "G", "i<M-C-g><C-\\><C-n>", { noremap = true, silent = true, desc = "Jump to last message" })
+    -- Matches tui.json: ctrl+b/f for half page scrolling (terminal-safe)
+    vim.api.nvim_buf_set_keymap(bufnr, "n", "<C-u>", "i<C-b><C-\\><C-n>", { noremap = true, silent = true, desc = "Half page up" })
+    vim.api.nvim_buf_set_keymap(bufnr, "n", "<C-d>", "i<C-f><C-\\><C-n>", { noremap = true, silent = true, desc = "Half page down" })
+    -- Matches tui.json: ctrl+a/e for first/last (terminal-safe)
+    vim.api.nvim_buf_set_keymap(bufnr, "n", "gg", "i<C-a><C-\\><C-n>", { noremap = true, silent = true, desc = "Jump to first message" })
+    vim.api.nvim_buf_set_keymap(bufnr, "n", "G", "i<C-e><C-\\><C-n>", { noremap = true, silent = true, desc = "Jump to last message" })
     
     M.terminals[path] = M.terminals[path] or {}
     M.terminals[path].bufnr = bufnr
